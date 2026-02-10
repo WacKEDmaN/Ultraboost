@@ -1,5 +1,8 @@
 # UltraBoost
 
+![UltraBoost PCB Render](ultraboost_pcb_render.png)
+<!-- Replace "ultraboost_pcb_render.png" with your exact uploaded filename/path, e.g. images/render.png -->
+
 **The Ultimate Co-Processor for Amstrad CPC (464/6128/Plus)**
 
 UltraBoost is a fully backward-compatible external expansion card based on the Raspberry Pi RP2350B. It transparently replaces/emulates RAM, ROM, and the WD1772 FDC while adding high-performance graphics acceleration, mass storage, and future enhancements (VGA, sound, USB HID).
@@ -69,3 +72,4 @@ Hybrid double-buffering (32 KB private back buffer + VSYNC swap):
 - USB HID host (modern input)
 - Symbiface II emulation (IDE/RTC/PS/2)
 
+**Contributions welcome!** Issues, pull requests, testing on real hardware appreciated.
