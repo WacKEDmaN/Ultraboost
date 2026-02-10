@@ -67,7 +67,7 @@ Hybrid double-buffering (32 KB private back buffer + VSYNC swap):
 - VGA scan-doubler / high-res modes
 - Enhanced sound (I2S + OPL4 emulation)
 - USB HID host (modern input)
-- Symbiface II emulation (IDE/RTC/PS/2)
+- Symbiface II emulation (IDE/RTC/mouse)
 
 ![UltraBoost PCB Render](ultraboost_pcb_render.png)
 
