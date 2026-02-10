@@ -315,21 +315,3 @@ Independent PSRAM buffers
 
 ---
 
-
-## Testing Checklist
-
-- [x] Address bus monitoring
-- [x] Data bus bidirectional control
-- [x] I/O port detection
-- [x] Gate Array emulation
-- [x] RAM banking 
-- [x] ROM switching
-- [x] Graphics primitives
-- [x] VGA signal generation
-- [x] I2S audio output
-- [x] SD card access
-- [x] RTC time keeping
-- [x] IDE emulation
-- [ ] Full system integration test
-
----
