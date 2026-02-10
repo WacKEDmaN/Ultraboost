@@ -280,13 +280,6 @@ Storage:
 
 ---
 
-### Total Lines of Code: ~3500 lines
-- Heavily commented
-- Optimized for speed (-O3)
-- Production-ready
-
----
-
 
 ## Key Innovations
 
