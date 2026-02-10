@@ -1,4 +1,4 @@
-# UltraBoost v3 - Complete Feature Summary
+# UltraBoost v3 - Complete Feature Summary!
 
 ![UltraBoost PCB Render](ultraboost_pcb_render.png)
 
