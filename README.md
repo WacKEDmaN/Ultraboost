@@ -1,5 +1,9 @@
 # UltraBoost v3 - Complete Feature Summary
 
+![UltraBoost PCB Render](ultraboost_pcb_render.png)
+
+*pcb image is not final!
+
 ## Hardware Architecture
 
 ### Connection Method: **External MX4 Expansion Port**
