@@ -41,9 +41,9 @@ Full 16-bit Address Bus (GPIO1-16)
 - ROM/RAM shadowing possible
 - DMA-like capabilities
 
-### 2. **128KB RAM Expansion** (6128 Mode) 
+### 2. **4MB RAM Expansion** 
 ```
-CPC RAM Banks (8 × 16KB)
+CPC RAM Bank
 ├── PSRAM: 0x000000-0x01FFFF
 ├── All 8 banking configurations
 ├── Config 0: [0][1][2][3] (64KB standard)
@@ -56,11 +56,11 @@ CPC RAM Banks (8 × 16KB)
 - Fast PSRAM access (~70ns)
 - Zero wait states
 
-### 3. **256 ROM Slots** (4MB) 
+### 3. **32 ROM Slots** (512KB) 
 ```
 ROM Storage
 ├── PSRAM: 0x0A0000-0x4A0000
-├── 256 slots × 16KB each
+├── 32 slots × 16KB each
 ├── Soft-switchable (no EPROM burning)
 └── Load from SD card
 ```
@@ -70,7 +70,7 @@ ROM Storage
 - ROM 7: AMSDOS
 - ROM 8+: User ROMs (MaxAM, Protext, etc.)
 - Symbiface 32-slot compatibility
-- Extended 224 additional slots
+
 
 ### 4. **VGA doublescaned output** 
 ```
