@@ -308,22 +308,6 @@ Independent PSRAM buffers
 
 ---
 
-## Bill of Materials
-
-| Component | Quantity | Est. Cost |
-|-----------|----------|-----------|
-| Waveshare Core2350B | 1 | $12 |
-| 74HC245 DIP-20 | 1 | $0.50 |
-| DS3231 RTC module | 1 | $1.50 |
-| SD card socket | 1 | $0.50 |
-| 50-pin edge connector | 1 | $2 |
-| Pin headers (various) | - | $2 |
-| Capacitors | 2 | $0.50 |
-| PCB (2-layer) | 1 | $5 |
-| **Total** | | **~$24** |
-
----
-
 ## Future Enhancements
 
 ### Planned Features:
