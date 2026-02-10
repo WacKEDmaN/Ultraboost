@@ -329,10 +329,10 @@ Independent PSRAM buffers
 - [x] Data bus bidirectional control
 - [x] I/O port detection
 - [x] Gate Array emulation
-- [x] RAM banking (all 8 configs)
+- [x] RAM banking 
 - [x] ROM switching
 - [x] Graphics primitives
-- [x] DVI signal generation
+- [x] VGA signal generation
 - [x] I2S audio output
 - [x] SD card access
 - [x] RTC time keeping
