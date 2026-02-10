@@ -51,7 +51,7 @@ Hybrid double-buffering (32 KB private back buffer + VSYNC swap):
 ## Compatibility
 
 - Amstrad CPC 464/6128/Plus
-- RAMDIS jumper to disable onboard 6128 RAM (full control)
+- RAMDIS disables onboard 6128 RAM (full control) 464 only blocks reads, but works not issue
 - All original software runs unchanged
 - Acceleration activated via magic signature/RSX
 
