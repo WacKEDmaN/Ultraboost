@@ -312,6 +312,7 @@ Independent PSRAM buffers
 - [ ] Hardware sprites (256+)
 - [ ] Copper-like raster effects
 - [ ] Shader support
+- [ ] Video playback through hybrid buffer
 
 ---
 
