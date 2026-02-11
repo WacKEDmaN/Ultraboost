@@ -313,6 +313,8 @@ Independent PSRAM buffers
 - [ ] Copper-like raster effects
 - [ ] Shader support
 - [ ] Video playback through hybrid buffer
+- [ ] Complete suite of graphics primatives (circles, triangles, polygon fill, etc)
+- [ ] Math Coprocessor suite including fast multiply, division and matrix operations (calculations can be written directly to CPC RAM, or received via IO Port IN)
 
 ---
 
