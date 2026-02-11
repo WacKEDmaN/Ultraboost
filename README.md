@@ -187,7 +187,7 @@ SPI Interface (GPIO44-46)
 ├── MISO: GPIO44
 ├── MOSI: GPIO45
 ├── SCK:  GPIO46
-└── CS:   GPIO0
+└── CS:   Hardwired to 5v (always selected)
 
 Storage:
 ├── Virtual HDD image
