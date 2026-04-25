@@ -28,7 +28,6 @@
 
 **Active GPIO:** GPIO1–GPIO46 = 46 pins, no gaps
 
-
 ---
 
 # PART 1 — HARDWARE
@@ -43,7 +42,7 @@ The card plugs into the CPC 50-pin expansion connector. From the CPC's perspecti
 
 **2. A V9990 VDP at ports &FF60–&FF6F.** Electrically equivalent to a GFX9000 card. SymbOS's existing GFX9000 CPC driver works without a single byte changed.
 
-**3. CPC 6128 ROM set.** The 6128 BASIC ROM (16 KB) and AMSDOS ROM (16 KB) are stored in the RP2350B's 16 MB flash and served to the Z80. ROMDIS is asserted via a hardware inverter from our bus-enable signal, disabling the CPC's own ROM chips with no possibility of bus conflict. A CPC 464 boots into 6128 BASIC with full disc support.
+**3. CPC 6128 ROM set.** The 6128 BASIC ROM (16 KB) and AMSDOS ROM (16 KB) are stored in the RP2350B's 16 MB flash and served to the Z80. ROMDIS is permanently hardwired HIGH (tied to +5 V via resistor), permanently disabling the CPC's own ROM chips. We serve all ROMs ourselves. A CPC 464 boots into 6128 BASIC with full disc support.
 
 **4. A math and 3D coprocessor at ports &FF40–&FF4F.** Hardware multiply, trig, matrix transforms, perspective projection, and textured 3D triangle rasterisation, all running asynchronously on Core 1.
 
@@ -188,9 +187,7 @@ LSB step ≈ 0.022 V. Use 1% tolerance resistors. Place close to DE-15.
 |-----|------|---------|-------|
 | 1 | Waveshare Core2350B (8 MB PSRAM) | Stamp module — 2.54 mm pin headers | Main MCU. Onboard 3.3 V LDO, 16 MB flash, 8 MB PSRAM. Solder to PCB via pin headers. |
 | 1 | 74LVC245 | DIP-20 | Data bus transceiver. 5 V tolerant inputs. Socket recommended. |
-| 1 | 2N3904 or BC547 | TO-92 | NPN transistor — derives ROMDIS from /OE. No extra GPIO needed. |
-| 1 | 10 kΩ | Axial 1/4 W | ROMDIS transistor base resistor |
-| 1 | 4.7 kΩ | Axial 1/4 W | ROMDIS transistor collector pull-up to +5 V |
+| 1 | 4.7 kΩ | Axial 1/4 W | ROMDIS hardwired HIGH — ties CPC expansion pin 44 to +5 V permanently |
 | 3 | 560 Ω 1% | Axial 1/4 W | VGA R4/G4/B4 MSB |
 | 3 | 1.0 kΩ 1% | Axial 1/4 W | VGA R3/G3/B3 |
 | 3 | 2.2 kΩ 1% | Axial 1/4 W | VGA R2/G2/B2 |
@@ -224,7 +221,7 @@ free non-commercial use of CPC ROM images. Include as binary blobs in the firmwa
 - **Pull-ups:** 10 kΩ pull-ups on /MREQ, /WR, /RESET to 3.3 V — ensures safe state when CPC is powered off or card is used standalone.
 - **Bus jumper:** A 2-pin jumper to break the CPC data bus connection is essential for development — allows powering and testing the Core2350B independently.
 - **RAMDIS:** Connect CPC expansion pin 45 (RAMDIS) to a dedicated GPIO output (or permanent pull-up). HIGH disables the CPC's internal RAM chips. Always assert RAMDIS — we serve all 128 KB from our SRAM.
-- **ROMDIS:** Connect CPC expansion pin 44 (ROMDIS) to the collector of the NPN transistor whose base is driven from GPIO26 (/OE) via 10 kΩ. Collector pull-up: 4.7 kΩ to +5 V (ROMDIS is a 5 V signal). When our /OE is low (we drive the bus), transistor is off, ROMDIS goes high, disabling all CPC internal ROM chips. This prevents bus conflict when we serve our 6128 ROM images.
+- **ROMDIS:** Hardwire CPC expansion pin 44 (ROMDIS) permanently HIGH via a 4.7 kΩ resistor to +5 V — identical approach to RAMDIS. Since we serve all ROMs ourselves (BASIC, AMSDOS, slot 5), the CPC's onboard ROM chips are never needed and can be permanently disabled. No transistor, no GPIO connection required.
 - **Decoupling:** 100 nF ceramic on every VCC/GND pin of both ICs. 10 µF bulk at the module power rail.
 
 ---
@@ -442,8 +439,8 @@ ROM handling (Core 0 RAM read ISR):
   all other addresses                            ->  serve from banked RAM pages
 
   All ROM data comes from RP2350B flash via XIP — zero SRAM cost.
-  ROMDIS is asserted HIGH by hardware (NPN inverter on /OE) whenever we drive
-  the bus, disabling all CPC ROM chips. No bus conflict possible.
+  ROMDIS is hardwired HIGH — CPC ROM chips are permanently disabled.
+  No bus conflict possible at any time.
 
 Status outputs:
   Pre-loads &FF43 (copro STATUS) and &FF64 (V9990 STATUS) into TX FIFOs
@@ -489,8 +486,8 @@ On /RESET (from CPC or power-on):
   8. Release /RESET — Z80 begins executing
 
   The Z80 reads from &0000. Gate Array has lower ROM enabled.
-  Our card serves the CPC 6128 BASIC ROM from flash. ROMDIS is high — the
-  CPC's own ROM chip is disabled, no conflict. BASIC boots normally.
+  Our card serves the CPC 6128 BASIC ROM from flash. ROMDIS is hardwired HIGH —
+  the CPC's own ROM chips are permanently disabled. No conflict possible.
   Core 1 simultaneously reconstructs the VGA output from emulated_ram[].
   From the CPC's perspective it is a fully configured 6128 with VGA output.
 ```
@@ -638,7 +635,7 @@ Z80 at 4 MHz: ~66,700 cycles/frame. Core 1 at 294 MHz: ~4,900,000 cycles/frame. 
 
 The CPC supports up to 32 upper ROM slots (0–31), each appearing at &C000–&FFFF (16 KB) when selected. The Z80 selects a slot with `OUT (&DF), n`. BASIC scans all slots at boot, finds foreground ROMs (type byte = 1), calls their init routines, and registers their RSX commands. **This happens automatically — no LOAD, no CALL needed.**
 
-**Critical difference with our card:** ROMDIS is permanently asserted whenever we drive the data bus. This disables every CPC ROM chip — the BASIC ROM on the motherboard, the AMSDOS ROM in the disc interface, everything. **We are now the sole provider of all ROM data.** We serve the CPC 6128 BASIC and AMSDOS images from our flash, exactly as if those ROM chips were our own.
+**Critical difference with our card:** ROMDIS is hardwired permanently HIGH — identical to how RAMDIS is handled. Every CPC ROM chip is disabled at all times. **We are the sole provider of all ROM data.** We serve the CPC 6128 BASIC and AMSDOS images from our flash. No transistor or GPIO connection is needed — just a resistor to +5 V.
 
 This means:
 - A CPC 464 gets 6128 BASIC instead of its own older BASIC ROM
@@ -658,8 +655,8 @@ This means:
 Core 0 snoops ROM select writes (&DFxx, A13=0) to keep `current_upper_rom` up to date. The memory read handler serves all ROM and RAM:
 
 ```c
-// We are the sole ROM provider. ROMDIS hardware ensures no CPC ROM chip
-// can conflict with us — they are disabled whenever we drive the bus.
+// We are the sole ROM provider. ROMDIS is hardwired HIGH — CPC ROM chips
+// are permanently disabled. No bus conflict is possible at any time.
 
 void __not_in_flash_func(handle_memory_read)(uint16_t addr) {
 
