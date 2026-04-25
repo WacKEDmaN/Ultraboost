@@ -7,15 +7,25 @@
 # CPC V9990 Accelerator Card — Design Reference v6
 
 **MCU module:** Waveshare Core2350B (RP2350B + 8 MB PSRAM + 16 MB flash onboard)
+
 **CPC compatibility:** 464 upgraded to full 6128 (128 KB RAM + 6128 BASIC + AMSDOS)
+
 **ROM images in flash:** CPC 6128 BASIC (16 KB) · CPC 6128 AMSDOS (16 KB) · Accelerator ROM slot 7 (16 KB)
+
 **System clock:** 294 MHz (PLL_SYS exact — see section 7)
+
 **Bus transceiver:** 74LVC245 — the only external logic IC
+
 **Colour output:** RGB555 — 15-bit, 32,768 colours
+
 **V9990 ports:** &FF60–&FF6F (GFX9000 compatible — SymbOS driver unmodified)
+
 **Coprocessor ports:** &FF40–&FF4F (math + 3D rasteriser)
+
 **Accelerator ROM:** CPC upper ROM slot 7 (auto-installs RSX on boot)
+
 **Reserved GPIO:** GPIO0 (boot select) · GPIO47 (PSRAM CS — SDK managed)
+
 **Active GPIO:** GPIO1–GPIO46 = 46 pins, no gaps
 
 ---
