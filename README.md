@@ -28,6 +28,7 @@
 
 **Active GPIO:** GPIO1–GPIO46 = 46 pins, no gaps
 
+
 ---
 
 # PART 1 — HARDWARE
@@ -58,13 +59,14 @@ At 294 MHz the RP2350B has 432 ns of margin to respond to any Z80 memory read. N
 Z80 at 4 MHz — data must be valid within ~500 ns of /MREQ falling
 
 RP2350B response:
-  PIO detects /MREQ + /WR high, pushes address to FIFO     ~14 ns
-  Core 0 IRQ entry (12 cycles @ 294 MHz)                   ~41 ns
-  SRAM lookup + GPIO drive                                   ~6 ns
-  74LVC245 propagation + PCB                                ~8 ns
-  ────────────────────────────────────────────────────────
-  Total                                                     ~69 ns
-  Margin to Z80 data sample:  500 - 69 = 431 ns  ✓
+  CPC address bus propagation to GPIO (direct, no resistors)    ~4 ns
+  PIO detects /MREQ + /WR high, pushes address to FIFO         ~14 ns
+  Core 0 IRQ entry (12 cycles @ 294 MHz)                       ~41 ns
+  SRAM lookup + GPIO drive                                       ~6 ns
+  74LVC245 propagation + PCB                                    ~8 ns
+  ────────────────────────────────────────────────────────────
+  Total                                                         ~73 ns
+  Margin to Z80 data sample:  500 - 73 = 427 ns  ✓
 ```
 
 For Z80 I/O cycles (1 µs at 4 MHz) the margin is ~930 ns — all math coprocessor
@@ -100,7 +102,7 @@ All bus-facing signals occupy GPIO1–29 and route toward the CPC connector side
 
 | GPIO | Signal | Dir | Notes |
 |------|--------|-----|-------|
-| 1–16 | A0–A15 | IN | Direct to RP2350B. PIO IN_BASE=GPIO1. 33 Ω damping at CPC connector. 10 kΩ pull-downs. |
+| 1–16 | A0–A15 | IN | Direct to RP2350B. PIO IN_BASE=GPIO1. No series resistors — RP2350B inputs are 5 V tolerant for reading. 10 kΩ pull-downs. |
 
 ### Group B — CPC Data Bus via 74LVC245 (GPIO17–24)
 
@@ -194,8 +196,7 @@ LSB step ≈ 0.022 V. Use 1% tolerance resistors. Place close to DE-15.
 | 3 | 2.2 kΩ 1% | 0402 | VGA R2/G2/B2 |
 | 3 | 4.7 kΩ 1% | 0402 | VGA R1/G1/B1 |
 | 3 | 10 kΩ 1% | 0402 | VGA R0/G0/B0 LSB |
-| 16 | 33 Ω | 0402 | Address bus damping A0–A15 |
-| 3 | 33 Ω | 0402 | Control signal damping /MREQ, /WR, /RESET |
+| 3 | 33 Ω | 0402 | Control signal damping /MREQ, /WR, /RESET (optional — see PCB notes) |
 | 20 | 10 kΩ | 0402 | Pull-ups/downs: /MREQ /WR /RESET (×3) + GPIO0 boot (×1) + A0–A15 (×16) |
 | 6 | 100 nF X7R | 0402 | VCC decoupling — one per VCC pin |
 | 2 | 10 µF | 0805 | Bulk decoupling at module VCC |
@@ -217,7 +218,8 @@ free non-commercial use of CPC ROM images. Include as binary blobs in the firmwa
 - **GPIO0:** Add 10 kΩ pull-up to 3.3 V plus tactile button to GND for BOOTSEL firmware update mode.
 - **GPIO47:** Do not connect. PSRAM CS is wired internally on the Core2350B module.
 - **74LVC245 placement:** As close to the CPC edge connector as possible. Keep data bus stub length under 20 mm.
-- **Damping resistors:** Place 33 Ω resistors at the CPC connector end of all address and control lines, not at the RP2350B end.
+- **Address bus:** Connect A0–A15 directly from CPC connector to RP2350B GPIO1–16 with no series resistors. The RP2350B inputs are 5 V tolerant in read mode and have been demonstrated to work reliably reading the CPC address bus. Series resistors add RC delay that hurts PIO timing — omit them.
+- **Control signals:** 33 Ω series resistors on /MREQ, /WR, /RESET are optional. Omit them for best timing. Include them only if signal integrity issues appear during testing (unlikely at CPC bus speeds).
 - **VGA resistors:** Place all 15 resistors close to the DE-15 connector. Keep a separate ground region under the DAC area to avoid digital noise coupling into the analogue signal.
 - **Pull-ups:** 10 kΩ pull-ups on /MREQ, /WR, /RESET to 3.3 V — ensures safe state when CPC is powered off or card is used standalone.
 - **Bus jumper:** A 2-pin jumper to break the CPC data bus connection is essential for development — allows powering and testing the Core2350B independently.
@@ -409,17 +411,16 @@ PIO SM1 — memory read handler
               total latency ~69 ns — well within Z80 timing
 
 ROM handling (Core 0 RAM read ISR):
-  addr &0000-&3FFF + lower ROM enabled  ->  serve cpc6128_basic_rom[] from flash — drive bus
-                                             ROMDIS is HIGH (CPC ROM chip disabled — no conflict)
-  addr &C000-&FFFF + upper ROM slot 0   ->  serve cpc6128_amsdos_rom[] from flash — drive bus
-                                             ROMDIS is HIGH (disc interface ROM disabled — no conflict)
-  addr &C000-&FFFF + upper ROM slot 7   ->  serve accel_rom[] from flash — drive bus
-  addr &C000-&FFFF + any other slot     ->  TRI-STATE — slot empty, bus floats to &FF via pull-ups
+  addr &0000-&3FFF + lower ROM enabled  ->  serve cpc6128_basic[] from flash — drive bus
+                                             ROMDIS HIGH — CPC BASIC ROM chip disabled, no conflict
+  addr &C000-&FFFF + upper ROM slot 0   ->  serve cpc6128_amsdos[] from flash — drive bus
+  addr &C000-&FFFF + upper ROM slot 5   ->  serve accel_rom[] from flash — drive bus (our RSX slot)
+  addr &C000-&FFFF + upper ROM slot 7   ->  serve cpc6128_amsdos[] mirror — drive bus (6128 compat)
+  addr &C000-&FFFF + any other slot     ->  drive &FF onto bus (empty slot — we own all ROM space)
 
-  ROMDIS is asserted HIGH whenever our /OE is LOW (we are driving the bus).
-  This disables ALL CPC ROM chips for the duration of our bus drive, preventing any conflict.
-  We provide the CPC 6128 BASIC ROM (16 KB) and AMSDOS ROM (16 KB) stored in our 16 MB flash.
-  A CPC 464 with this card fitted boots with 6128 BASIC, AMSDOS, and 128 KB RAM — full 6128 behaviour.
+  We are the sole ROM provider. All CPC ROM chips are disabled by ROMDIS.
+  We serve CPC 6128 BASIC and AMSDOS from RP2350B flash (16 KB each, XIP zero SRAM cost).
+  A CPC 464 with this card boots as a full 6128: 6128 BASIC, AMSDOS, 128 KB banked RAM.
 
 Status outputs:
   Pre-loads &FF43 (copro STATUS) and &FF64 (V9990 STATUS) into TX FIFOs
@@ -608,51 +609,64 @@ Z80 at 4 MHz: ~66,700 cycles/frame. Core 1 at 294 MHz: ~4,900,000 cycles/frame. 
 
 ---
 
-## 15. Accelerator ROM — CPC Upper ROM Slot 7
+## 15. Accelerator ROM — CPC Upper ROM Slot 5
 
-### How CPC upper ROMs work
+### How CPC upper ROMs work — with our card fitted
 
 The CPC supports up to 32 upper ROM slots (0–31), each appearing at &C000–&FFFF (16 KB) when selected. The Z80 selects a slot with `OUT (&DF), n`. BASIC scans all slots at boot, finds foreground ROMs (type byte = 1), calls their init routines, and registers their RSX commands. **This happens automatically — no LOAD, no CALL needed.**
 
-| Slot | Occupant |
-|------|---------|
-| 0 | AMSDOS (served by disc interface ROM — we tri-state) |
-| 1–6 | Various known hardware — avoided |
-| **7** | **Our accelerator ROM** |
-| 8–31 | Free for user expansion |
+**Critical difference with our card:** ROMDIS is permanently asserted whenever we drive the data bus. This disables every CPC ROM chip — the BASIC ROM on the motherboard, the AMSDOS ROM in the disc interface, everything. **We are now the sole provider of all ROM data.** We serve the CPC 6128 BASIC and AMSDOS images from our flash, exactly as if those ROM chips were our own.
 
-Core 0 already snoops all I/O writes. ROM select writes (&DFxx, A13=0) update `current_upper_rom`. The memory read handler branches on this value when addr is in &C000–&FFFF:
+This means:
+- A CPC 464 gets 6128 BASIC instead of its own older BASIC ROM
+- A CPC 464 gets AMSDOS even without a disc interface fitted
+- A CPC 6128 gets our ROM images in place of its own — identical content, so no difference in behaviour
+- Any ROM expansion hardware that uses other slots will NOT work alongside our card — we are the only ROM provider
+
+| Slot | What we serve |
+|------|--------------|
+| 0 | CPC 6128 AMSDOS ROM (16 KB, from RP2350B flash) |
+| 1–4 | Empty — we return &FF (unpopulated slot) |
+| **5** | **Our accelerator ROM (16 KB, from RP2350B flash)** |
+| 6 | Empty — we return &FF |
+| 7 | CPC 6128 AMSDOS ROM mirror (for software that selects slot 7 directly) |
+| 8–31 | Empty — we return &FF |
+
+Core 0 snoops ROM select writes (&DFxx, A13=0) to keep `current_upper_rom` up to date. The memory read handler serves all ROM and RAM:
 
 ```c
-// We only drive the bus when WE are responsible for the data.
-// BASIC ROM and AMSDOS ROM are served by the CPC's own hardware — we tri-state.
+// We are the sole ROM provider. ROMDIS hardware ensures no CPC ROM chip
+// can conflict with us — they are disabled whenever we drive the bus.
 
-void handle_memory_read_isr(uint16_t addr) {
-    // Lower ROM region: CPC BASIC ROM chip drives bus — stay out
+void __not_in_flash_func(handle_memory_read)(uint16_t addr) {
+
+    // Lower ROM (&0000-&3FFF): serve CPC 6128 BASIC from flash
     if (addr < 0x4000 && lower_rom_enabled) {
-        tristate_bus(); return;
-    }
-    // Upper ROM region
-    if (addr >= 0xC000 && upper_rom_enabled) {
-        if (current_upper_rom == 7) {
-            // Our accelerator ROM — only ROM we provide, served from flash XIP
-            drive_data_bus(accel_rom[addr - 0xC000]);
-        } else {
-            // Slot 0 = disc interface AMSDOS, other slots = empty
-            // In both cases, we tri-state and let the real hardware respond
-            tristate_bus();
-        }
+        drive_data_bus(cpc6128_basic[addr]);
         return;
     }
-    // RAM — we always serve this from emulated_ram[]
-    drive_data_bus(emulated_ram[addr]);
+
+    // Upper ROM (&C000-&FFFF): we serve everything, or return &FF for empty slots
+    if (addr >= 0xC000 && upper_rom_enabled) {
+        uint16_t offset = addr - 0xC000;
+        switch (current_upper_rom) {
+            case 0:  drive_data_bus(cpc6128_amsdos[offset]); return;  // slot 0 = AMSDOS
+            case 5:  drive_data_bus(accel_rom[offset]);       return;  // slot 5 = our accelerator ROM
+            case 7:  drive_data_bus(cpc6128_amsdos[offset]); return;  // slot 7 = AMSDOS mirror (6128 compat)
+            default: drive_data_bus(0xFF);                    return;  // empty slot
+        }
+        // Note: drive_data_bus asserts /OE LOW, which via the NPN inverter
+        // asserts ROMDIS HIGH, disabling all CPC ROM chips. No conflict possible.
+    }
+
+    // RAM — serve from current 6128 banking configuration
+    drive_data_bus(page_map[addr >> 14][addr & 0x3FFF]);
 }
 ```
 
-`accel_rom[]` is a 16 KB const array stored in RP2350B flash and accessed
-via XIP — zero SRAM cost. No ROM images are stored or copied anywhere.
+All three ROM arrays (`cpc6128_basic`, `cpc6128_amsdos`, `accel_rom`) live in RP2350B flash and are accessed via XIP — zero SRAM cost for any of them.
 
-### ROM memory map (&C000–&FFFF)
+### ROM memory map (&C000–&FFFF)  —  served in slot 5
 
 ```
 &C000  ROM header (type=1, mark=&CB, version)
@@ -722,6 +736,9 @@ APP_INIT:
     LD A,0 : CALL SET_VGA_MODE
     RET
 
+; Note: card is in slot 5. BASIC scans 7 down to 0 on 464, 15 down to 0 on 6128.
+; Slot 5 auto-installs on BOTH machines without needing any CALL or LOAD.
+
 .no_card:
     LD HL,MSG_NO_CARD
 .pr: LD A,(HL) : INC HL : OR A : RET Z : CALL &BB5A : JR .pr
@@ -781,7 +798,7 @@ Registered automatically at boot via the ROM. No setup required by the user.
 
 ## 17. Z80 ASM Library
 
-The library lives in the ROM body at &C800+. Call routines via the fixed jump table at &C010. The ROM must be paged in (select slot 7 with `OUT (&DF),7`) and upper ROM must be enabled via the Gate Array config.
+The library lives in the ROM body at &C800+. Call routines via the fixed jump table at &C010. The ROM must be paged in (select slot 5 with `OUT (&DF),5`) and upper ROM must be enabled via the Gate Array config.
 
 ### Port constants (for use in user code)
 
@@ -1057,8 +1074,7 @@ BACKING_BASE EQU &500000  ; Window backing store  (3 MB)
 | 2 | RGB555 VGA test pattern | All 32,768 colours correct, no noise |
 | 3 | Bus snooper validation | Logic analyser confirms every Z80 cycle captured |
 | 4 | RAM replace mode | CPC boots from RP2350B SRAM, no /WAIT |
-| 5 | ROM slot 7 | Accelerator ROM auto-installs at boot, |ACC_INFO prints |
-| 6 | Accelerator ROM slot 7 | |ACC_INFO prints at BASIC boot |
+| 5 | Accelerator ROM slot 5 | Auto-installs RSX at boot, |ACC_INFO prints on 464 and 6128 |
 | 7 | CPC native VGA output | BASIC start screen correct on VGA monitor |
 | 8 | V9990 port decode | &FF60 writes reach PSRAM VRAM correctly |
 | 9 | V9990 P1 mode | SymbOS desktop renders on VGA |
@@ -1068,3 +1084,4 @@ BACKING_BASE EQU &500000  ; Window backing store  (3 MB)
 | 13 | PCB v1 | Full carrier board fabricated |
 | 14 | Higher VGA modes | 800×600 and 1024×768 double-scan working |
 | 15 | SymbOS full test | Complete SymbOS session stable |
+
