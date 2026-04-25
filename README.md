@@ -10,7 +10,7 @@
 
 **CPC compatibility:** 464 upgraded to full 6128 (128 KB RAM + 6128 BASIC + AMSDOS)
 
-**ROM images in flash:** CPC 6128 BASIC (16 KB) · CPC 6128 AMSDOS (16 KB) · Accelerator ROM slot 7 (16 KB)
+**ROM images in flash:** CPC 6128 BASIC (16 KB) · CPC 6128 AMSDOS (16 KB) · Accelerator ROM slot 5 (16 KB)
 
 **System clock:** 294 MHz (PLL_SYS exact — see section 7)
 
@@ -22,12 +22,11 @@
 
 **Coprocessor ports:** &FF40–&FF4F (math + 3D rasteriser)
 
-**Accelerator ROM:** CPC upper ROM slot 7 (auto-installs RSX on boot)
+**Accelerator ROM:** CPC upper ROM slot 5 (auto-installs RSX on boot — within 464 scan range)
 
 **Reserved GPIO:** GPIO0 (boot select) · GPIO47 (PSRAM CS — SDK managed)
 
 **Active GPIO:** GPIO1–GPIO46 = 46 pins, no gaps
-
 
 ---
 
@@ -408,19 +407,42 @@ PIO SM1 — memory read handler
   Raises IRQ to Core 0
   Core 0 ISR: looks up emulated_ram[addr] (or ROM if applicable)
               drives result onto D0–D7 via GPIO + 74LVC245
-              total latency ~69 ns — well within Z80 timing
+              total latency ~73 ns — well within Z80 timing
+
+ROMEN (CPC expansion pin 42) — not connected, not needed:
+  ROMEN is driven LOW by the Gate Array whenever a ROM region is being addressed.
+  Real ROM expansion boards wire ROMEN to their chip /CS.
+  We do not connect ROMEN. Instead we replicate the Gate Array's ROM-enable
+  logic entirely in software using a shadow of the Gate Array config register.
+
+  The Gate Array enables a ROM region when:
+    lower ROM: A15=0 AND A14=0 AND lower_rom_enable_bit = 1  (addr &0000-&3FFF)
+    upper ROM: A15=1             AND upper_rom_enable_bit = 1  (addr &C000-&FFFF)
+
+  We maintain lower_rom_enabled and upper_rom_enabled flags by snooping every
+  write to &7Fxx (Gate Array port, A15=0 AND A14=1). Bit 2 of the data byte
+  controls lower ROM, bit 3 controls upper ROM.
+
+  The shadow is initialised to the CPC power-on state (both ROMs enabled, slot 0)
+  before /RESET is released — so the very first Z80 instruction fetch is handled
+  correctly. No startup race condition exists.
+
+  This approach is reliable because Gate Array config writes always precede the
+  ROM read cycles they affect — the Z80 cannot change ROM enable state mid-cycle.
 
 ROM handling (Core 0 RAM read ISR):
-  addr &0000-&3FFF + lower ROM enabled  ->  serve cpc6128_basic[] from flash — drive bus
-                                             ROMDIS HIGH — CPC BASIC ROM chip disabled, no conflict
-  addr &C000-&FFFF + upper ROM slot 0   ->  serve cpc6128_amsdos[] from flash — drive bus
-  addr &C000-&FFFF + upper ROM slot 5   ->  serve accel_rom[] from flash — drive bus (our RSX slot)
-  addr &C000-&FFFF + upper ROM slot 7   ->  serve cpc6128_amsdos[] mirror — drive bus (6128 compat)
-  addr &C000-&FFFF + any other slot     ->  drive &FF onto bus (empty slot — we own all ROM space)
+  addr &0000-&3FFF + lower_rom_enabled = true   ->  serve cpc6128_basic[] from flash
+  addr &0000-&3FFF + lower_rom_enabled = false  ->  serve RAM page 0 (normal RAM access)
+  addr &C000-&FFFF + upper_rom_enabled = true,  slot 0  ->  serve cpc6128_basic[] (BASIC at &C000)
+  addr &C000-&FFFF + upper_rom_enabled = true,  slot 5  ->  serve accel_rom[]
+  addr &C000-&FFFF + upper_rom_enabled = true,  slot 7  ->  serve cpc6128_amsdos[] (AMSDOS)
+  addr &C000-&FFFF + upper_rom_enabled = true,  other   ->  drive &FF (empty slot)
+  addr &C000-&FFFF + upper_rom_enabled = false  ->  serve RAM page 3 (normal RAM access)
+  all other addresses                            ->  serve from banked RAM pages
 
-  We are the sole ROM provider. All CPC ROM chips are disabled by ROMDIS.
-  We serve CPC 6128 BASIC and AMSDOS from RP2350B flash (16 KB each, XIP zero SRAM cost).
-  A CPC 464 with this card boots as a full 6128: 6128 BASIC, AMSDOS, 128 KB banked RAM.
+  All ROM data comes from RP2350B flash via XIP — zero SRAM cost.
+  ROMDIS is asserted HIGH by hardware (NPN inverter on /OE) whenever we drive
+  the bus, disabling all CPC ROM chips. No bus conflict possible.
 
 Status outputs:
   Pre-loads &FF43 (copro STATUS) and &FF64 (V9990 STATUS) into TX FIFOs
@@ -625,11 +647,11 @@ This means:
 
 | Slot | What we serve |
 |------|--------------|
-| 0 | CPC 6128 AMSDOS ROM (16 KB, from RP2350B flash) |
+| 0 | CPC 6128 BASIC ROM (16 KB, from RP2350B flash) — same image as lower ROM |
 | 1–4 | Empty — we return &FF (unpopulated slot) |
 | **5** | **Our accelerator ROM (16 KB, from RP2350B flash)** |
 | 6 | Empty — we return &FF |
-| 7 | CPC 6128 AMSDOS ROM mirror (for software that selects slot 7 directly) |
+| 7 | CPC 6128 AMSDOS ROM (16 KB, from RP2350B flash) |
 | 8–31 | Empty — we return &FF |
 
 Core 0 snoops ROM select writes (&DFxx, A13=0) to keep `current_upper_rom` up to date. The memory read handler serves all ROM and RAM:
@@ -640,31 +662,40 @@ Core 0 snoops ROM select writes (&DFxx, A13=0) to keep `current_upper_rom` up to
 
 void __not_in_flash_func(handle_memory_read)(uint16_t addr) {
 
-    // Lower ROM (&0000-&3FFF): serve CPC 6128 BASIC from flash
-    if (addr < 0x4000 && lower_rom_enabled) {
-        drive_data_bus(cpc6128_basic[addr]);
+    // Lower ROM region (&0000-&3FFF)
+    if (addr < 0x4000) {
+        if (lower_rom_enabled)
+            drive_data_bus(cpc6128_basic[addr]);   // serve 6128 BASIC from flash
+        else
+            drive_data_bus(page_map[0][addr]);     // lower ROM disabled — serve RAM page 0
         return;
     }
 
-    // Upper ROM (&C000-&FFFF): we serve everything, or return &FF for empty slots
-    if (addr >= 0xC000 && upper_rom_enabled) {
+    // Upper ROM region (&C000-&FFFF)
+    if (addr >= 0xC000) {
         uint16_t offset = addr - 0xC000;
-        switch (current_upper_rom) {
-            case 0:  drive_data_bus(cpc6128_amsdos[offset]); return;  // slot 0 = AMSDOS
-            case 5:  drive_data_bus(accel_rom[offset]);       return;  // slot 5 = our accelerator ROM
-            case 7:  drive_data_bus(cpc6128_amsdos[offset]); return;  // slot 7 = AMSDOS mirror (6128 compat)
-            default: drive_data_bus(0xFF);                    return;  // empty slot
+        if (upper_rom_enabled) {
+            switch (current_upper_rom) {
+                case 0:  drive_data_bus(cpc6128_basic[offset]);  return;  // slot 0 = BASIC
+                case 5:  drive_data_bus(accel_rom[offset]);       return;  // slot 5 = our accelerator ROM
+                case 7:  drive_data_bus(cpc6128_amsdos[offset]); return;  // slot 7 = AMSDOS
+                default: drive_data_bus(0xFF);                    return;  // empty slot
+            }
+        } else {
+            drive_data_bus(page_map[3][offset]);   // upper ROM disabled — serve RAM page 3
         }
-        // Note: drive_data_bus asserts /OE LOW, which via the NPN inverter
-        // asserts ROMDIS HIGH, disabling all CPC ROM chips. No conflict possible.
+        return;
     }
 
-    // RAM — serve from current 6128 banking configuration
+    // Middle RAM (&4000-&BFFF) — always RAM, no ROM possible here
     drive_data_bus(page_map[addr >> 14][addr & 0x3FFF]);
 }
 ```
 
-All three ROM arrays (`cpc6128_basic`, `cpc6128_amsdos`, `accel_rom`) live in RP2350B flash and are accessed via XIP — zero SRAM cost for any of them.
+All three ROM arrays live in RP2350B flash, accessed via XIP — zero SRAM cost:
+- `cpc6128_basic[]`  16 KB — served at lower ROM region AND upper ROM slot 0
+- `cpc6128_amsdos[]` 16 KB — served at upper ROM slot 7
+- `accel_rom[]`      16 KB — served at upper ROM slot 5
 
 ### ROM memory map (&C000–&FFFF)  —  served in slot 5
 
@@ -1070,18 +1101,18 @@ BACKING_BASE EQU &500000  ; Window backing store  (3 MB)
 
 | Phase | Goal | Pass criteria |
 |-------|------|--------------|
-| 1 | Core2350B stable at 294 MHz | SRAM self-test passes, USB stable |
-| 2 | RGB555 VGA test pattern | All 32,768 colours correct, no noise |
-| 3 | Bus snooper validation | Logic analyser confirms every Z80 cycle captured |
-| 4 | RAM replace mode | CPC boots from RP2350B SRAM, no /WAIT |
-| 5 | Accelerator ROM slot 5 | Auto-installs RSX at boot, |ACC_INFO prints on 464 and 6128 |
-| 7 | CPC native VGA output | BASIC start screen correct on VGA monitor |
-| 8 | V9990 port decode | &FF60 writes reach PSRAM VRAM correctly |
-| 9 | V9990 P1 mode | SymbOS desktop renders on VGA |
-| 10 | V9990 blitter | LMMC, LMMV, LMMM working via SymbOS driver |
-| 11 | Coprocessor math | MUL16, SIN, MAT_TRANSFORM verified |
-| 12 | 3D rasteriser | TRI_TEXTURED_Z draws correctly into VRAM |
-| 13 | PCB v1 | Full carrier board fabricated |
-| 14 | Higher VGA modes | 800×600 and 1024×768 double-scan working |
-| 15 | SymbOS full test | Complete SymbOS session stable |
-
+| 1 | PCB v1 designed and fabricated | All components placed and routed. Send to fab — cheap and fast. |
+| 2 | PCB bring-up — power and clock | Core2350B stable at 294 MHz. USB console working. 3.3 V rail clean on scope. |
+| 3 | RGB555 VGA output | Test pattern shows all 32,768 colours correctly. No noise on analogue outputs. |
+| 4 | Bus snooper validation | Logic analyser on CPC bus confirms PIO captures every cycle correctly. |
+| 5 | RAM replace mode | CPC boots from RP2350B SRAM with RAMDIS asserted. No /WAIT used. 128 KB banking working. |
+| 6 | ROM serving | 6128 BASIC boots correctly. AMSDOS in slot 7. Accelerator RSX auto-installs from slot 5. |
+| 7 | CPC native VGA output | BASIC start screen reconstructed correctly on VGA monitor in real time. |
+| 8 | V9990 port decode | OUT &FF60 writes reach PSRAM VRAM. IN &FF64 returns correct status byte. |
+| 9 | V9990 P1 mode | SymbOS desktop loads and renders on VGA without artefacts. |
+| 10 | V9990 blitter commands | LMMC, LMMV, LMMM working correctly via unmodified SymbOS GFX9000 driver. |
+| 11 | Coprocessor math | MUL16, DIV16, SIN, COS, MAT_TRANSFORM all return correct results. |
+| 12 | 3D rasteriser | TRI_TEXTURED_Z draws correctly into VRAM, visible on VGA output. |
+| 13 | PCB v2 (if needed) | Fix any layout issues found during v1 testing. |
+| 14 | Higher VGA modes | 800×600 and 1024×768 double-scan modes stable on monitors. |
+| 15 | SymbOS full session | Extended SymbOS use stable — apps, file manager, graphics all working. |
