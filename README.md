@@ -6,12 +6,14 @@
 
 # CPC V9990 Accelerator Card — Design Reference v6
 
+# CPC V9990 Accelerator Card — Design Reference v6
+
 **MCU module:** Waveshare Core2350B (RP2350B + 8 MB PSRAM + 16 MB flash onboard)
 
 **CPC compatibility:** 464 upgraded to full 6128 (128 KB RAM + 6128 BASIC + AMSDOS)
 
-**ROM images in flash:** CPC 6128 BASIC (16 KB) · CPC 6128 AMSDOS (16 KB) · Accelerator ROM slot 5 (16 KB)
 
+**ROM images in flash:** CPC 6128 BASIC (16 KB) · CPC 6128 AMSDOS (16 KB) · Accelerator ROM slot 5 (16 KB)
 **System clock:** 294 MHz (PLL_SYS exact — see section 7)
 
 **Bus transceiver:** 74LVC245 — the only external logic IC
@@ -185,24 +187,24 @@ LSB step ≈ 0.022 V. Use 1% tolerance resistors. Place close to DE-15.
 
 | Qty | Part | Package | Notes |
 |-----|------|---------|-------|
-| 1 | Waveshare Core2350B (8 MB PSRAM) | Stamp module | Main MCU. Onboard 3.3 V LDO, 16 MB flash, 8 MB PSRAM. |
-| 1 | 74LVC245 | SOIC-20 or TSSOP-20 | Data bus transceiver. 5 V tolerant inputs. |
-| 1 | MMBT3904 or BC817 | SOT-23 | NPN transistor — derives ROMDIS from /OE. No extra GPIO needed. |
-| 1 | 10 kΩ | 0402 | ROMDIS transistor base resistor |
-| 1 | 4.7 kΩ | 0402 | ROMDIS transistor collector pull-up to +5 V |
-| 3 | 560 Ω 1% | 0402 | VGA R4/G4/B4 MSB |
-| 3 | 1.0 kΩ 1% | 0402 | VGA R3/G3/B3 |
-| 3 | 2.2 kΩ 1% | 0402 | VGA R2/G2/B2 |
-| 3 | 4.7 kΩ 1% | 0402 | VGA R1/G1/B1 |
-| 3 | 10 kΩ 1% | 0402 | VGA R0/G0/B0 LSB |
-| 3 | 33 Ω | 0402 | Control signal damping /MREQ, /WR, /RESET (optional — see PCB notes) |
-| 20 | 10 kΩ | 0402 | Pull-ups/downs: /MREQ /WR /RESET (×3) + GPIO0 boot (×1) + A0–A15 (×16) |
-| 6 | 100 nF X7R | 0402 | VCC decoupling — one per VCC pin |
-| 2 | 10 µF | 0805 | Bulk decoupling at module VCC |
-| 1 | DE-15 female | PCB mount | VGA output |
+| 1 | Waveshare Core2350B (8 MB PSRAM) | Stamp module — 2.54 mm pin headers | Main MCU. Onboard 3.3 V LDO, 16 MB flash, 8 MB PSRAM. Solder to PCB via pin headers. |
+| 1 | 74LVC245 | DIP-20 | Data bus transceiver. 5 V tolerant inputs. Socket recommended. |
+| 1 | 2N3904 or BC547 | TO-92 | NPN transistor — derives ROMDIS from /OE. No extra GPIO needed. |
+| 1 | 10 kΩ | Axial 1/4 W | ROMDIS transistor base resistor |
+| 1 | 4.7 kΩ | Axial 1/4 W | ROMDIS transistor collector pull-up to +5 V |
+| 3 | 560 Ω 1% | Axial 1/4 W | VGA R4/G4/B4 MSB |
+| 3 | 1.0 kΩ 1% | Axial 1/4 W | VGA R3/G3/B3 |
+| 3 | 2.2 kΩ 1% | Axial 1/4 W | VGA R2/G2/B2 |
+| 3 | 4.7 kΩ 1% | Axial 1/4 W | VGA R1/G1/B1 |
+| 3 | 10 kΩ 1% | Axial 1/4 W | VGA R0/G0/B0 LSB |
+| 3 | 33 Ω | Axial 1/4 W | Control signal damping /MREQ, /WR, /RESET (optional — see PCB notes) |
+| 20 | 10 kΩ | Axial 1/4 W | Pull-ups/downs: /MREQ /WR /RESET (×3) + GPIO0 boot (×1) + A0–A15 (×16) |
+| 6 | 100 nF | Disc ceramic, 2.54 mm pitch | VCC decoupling — one per VCC pin |
+| 2 | 10 µF 16 V | Electrolytic, radial | Bulk decoupling at module VCC |
+| 1 | DE-15 female | PCB mount THT | VGA output |
 | 1 | 50-pin edge connector | 3.96 mm pitch | CPC expansion — male on PCB edge |
-| 1 | 2-pin jumper | 2.54 mm | Bus disconnect for development |
-| 1 | Tactile button | THT | GPIO0 to GND — BOOTSEL for firmware update |
+| 1 | 2-pin header + jumper | 2.54 mm | Bus disconnect for development |
+| 1 | Tactile button | THT 6×6 mm | GPIO0 to GND — BOOTSEL for firmware update |
 
 No external LDO required. 3.3 V is provided by the onboard regulator on the Core2350B module.
 
@@ -219,7 +221,7 @@ free non-commercial use of CPC ROM images. Include as binary blobs in the firmwa
 - **74LVC245 placement:** As close to the CPC edge connector as possible. Keep data bus stub length under 20 mm.
 - **Address bus:** Connect A0–A15 directly from CPC connector to RP2350B GPIO1–16 with no series resistors. The RP2350B inputs are 5 V tolerant in read mode and have been demonstrated to work reliably reading the CPC address bus. Series resistors add RC delay that hurts PIO timing — omit them.
 - **Control signals:** 33 Ω series resistors on /MREQ, /WR, /RESET are optional. Omit them for best timing. Include them only if signal integrity issues appear during testing (unlikely at CPC bus speeds).
-- **VGA resistors:** Place all 15 resistors close to the DE-15 connector. Keep a separate ground region under the DAC area to avoid digital noise coupling into the analogue signal.
+- **VGA resistors:** Place all 15 resistors close to the DE-15 connector. Keep a separate ground region under the DAC area to avoid digital noise coupling into the analogue signal. Use 1% tolerance axial resistors for accurate voltage levels.
 - **Pull-ups:** 10 kΩ pull-ups on /MREQ, /WR, /RESET to 3.3 V — ensures safe state when CPC is powered off or card is used standalone.
 - **Bus jumper:** A 2-pin jumper to break the CPC data bus connection is essential for development — allows powering and testing the Core2350B independently.
 - **RAMDIS:** Connect CPC expansion pin 45 (RAMDIS) to a dedicated GPIO output (or permanent pull-up). HIGH disables the CPC's internal RAM chips. Always assert RAMDIS — we serve all 128 KB from our SRAM.
