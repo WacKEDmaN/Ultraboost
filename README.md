@@ -6,14 +6,12 @@
 
 # CPC V9990 Accelerator Card — Design Reference v6
 
-# CPC V9990 Accelerator Card — Design Reference v6
-
 **MCU module:** Waveshare Core2350B (RP2350B + 8 MB PSRAM + 16 MB flash onboard)
 
 **CPC compatibility:** 464 upgraded to full 6128 (128 KB RAM + 6128 BASIC + AMSDOS)
 
-
 **ROM images in flash:** CPC 6128 BASIC (16 KB) · CPC 6128 AMSDOS (16 KB) · Accelerator ROM slot 5 (16 KB)
+
 **System clock:** 294 MHz (PLL_SYS exact — see section 7)
 
 **Bus transceiver:** 74LVC245 — the only external logic IC
@@ -103,7 +101,7 @@ All bus-facing signals occupy GPIO1–29 and route toward the CPC connector side
 
 | GPIO | Signal | Dir | Notes |
 |------|--------|-----|-------|
-| 1–16 | A0–A15 | IN | Direct to RP2350B. PIO IN_BASE=GPIO1. No series resistors — RP2350B inputs are 5 V tolerant for reading. 10 kΩ pull-downs. |
+| 1–16 | A0–A15 | IN | Direct to RP2350B. PIO IN_BASE=GPIO1. No series resistors — RP2350B inputs are 5 V tolerant for reading. Z80 always drives these lines — no pull-downs needed. |
 
 ### Group B — CPC Data Bus via 74LVC245 (GPIO17–24)
 
@@ -198,7 +196,7 @@ LSB step ≈ 0.022 V. Use 1% tolerance resistors. Place close to DE-15.
 | 3 | 4.7 kΩ 1% | Axial 1/4 W | VGA R1/G1/B1 |
 | 3 | 10 kΩ 1% | Axial 1/4 W | VGA R0/G0/B0 LSB |
 | 3 | 33 Ω | Axial 1/4 W | Control signal damping /MREQ, /WR, /RESET (optional — see PCB notes) |
-| 20 | 10 kΩ | Axial 1/4 W | Pull-ups/downs: /MREQ /WR /RESET (×3) + GPIO0 boot (×1) + A0–A15 (×16) |
+| 3 | 10 kΩ | Axial 1/4 W | Pull-ups on /MREQ, /WR, /RESET — safe state when CPC absent |
 | 6 | 100 nF | Disc ceramic, 2.54 mm pitch | VCC decoupling — one per VCC pin |
 | 2 | 10 µF 16 V | Electrolytic, radial | Bulk decoupling at module VCC |
 | 1 | DE-15 female | PCB mount THT | VGA output |
@@ -216,7 +214,6 @@ free non-commercial use of CPC ROM images. Include as binary blobs in the firmwa
 
 ## 7. PCB Design Notes
 
-- **GPIO0:** Add 10 kΩ pull-up to 3.3 V plus tactile button to GND for BOOTSEL firmware update mode.
 - **GPIO47:** Do not connect. PSRAM CS is wired internally on the Core2350B module.
 - **74LVC245 placement:** As close to the CPC edge connector as possible. Keep data bus stub length under 20 mm.
 - **Address bus:** Connect A0–A15 directly from CPC connector to RP2350B GPIO1–16 with no series resistors. The RP2350B inputs are 5 V tolerant in read mode and have been demonstrated to work reliably reading the CPC address bus. Series resistors add RC delay that hurts PIO timing — omit them.
