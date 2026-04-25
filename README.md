@@ -28,6 +28,7 @@
 
 **Active GPIO:** GPIO1–GPIO46 = 46 pins, no gaps
 
+
 ---
 
 # PART 1 — HARDWARE
@@ -200,7 +201,7 @@ LSB step ≈ 0.022 V. Use 1% tolerance resistors. Place close to DE-15.
 | 6 | 100 nF | Disc ceramic, 2.54 mm pitch | VCC decoupling — one per VCC pin |
 | 2 | 10 µF 16 V | Electrolytic, radial | Bulk decoupling at module VCC |
 | 1 | DE-15 female | PCB mount THT | VGA output |
-| 1 | 50-pin edge connector | 3.96 mm pitch | CPC expansion — male on PCB edge |
+| 1 | 50-pin right angle pin header | 2.54 mm pitch, 2×25 | CPC expansion bus — right angle so card sits flat in MX4-compatible backplane |
 | 1 | 2-pin header + jumper | 2.54 mm | Bus disconnect for development |
 | 1 | Tactile button | THT 6×6 mm | GPIO0 to GND — BOOTSEL for firmware update |
 
@@ -215,7 +216,8 @@ free non-commercial use of CPC ROM images. Include as binary blobs in the firmwa
 ## 7. PCB Design Notes
 
 - **GPIO47:** Do not connect. PSRAM CS is wired internally on the Core2350B module.
-- **74LVC245 placement:** As close to the CPC edge connector as possible. Keep data bus stub length under 20 mm.
+- **CPC connector:** 50-pin right angle 2×25 pin header at 2.54 mm pitch, mounted on the top edge of the board with pins pointing horizontally to plug into the MX4-compatible backplane socket. Components sit on the same face. Verify pin order matches the MX4 bus pinout before ordering.
+- **Card dimensions:** Keep the PCB width compatible with the MX4 slot spacing. Check the backplane slot pitch before finalising the board outline.
 - **Address bus:** Connect A0–A15 directly from CPC connector to RP2350B GPIO1–16 with no series resistors. The RP2350B inputs are 5 V tolerant in read mode and have been demonstrated to work reliably reading the CPC address bus. Series resistors add RC delay that hurts PIO timing — omit them.
 - **Control signals:** 33 Ω series resistors on /MREQ, /WR, /RESET are optional. Omit them for best timing. Include them only if signal integrity issues appear during testing (unlikely at CPC bus speeds).
 - **VGA resistors:** Place all 15 resistors close to the DE-15 connector. Keep a separate ground region under the DAC area to avoid digital noise coupling into the analogue signal. Use 1% tolerance axial resistors for accurate voltage levels.
