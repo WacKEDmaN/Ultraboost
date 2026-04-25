@@ -107,7 +107,7 @@ All bus-facing signals occupy GPIO1–29 and route toward the CPC connector side
 
 | GPIO | Signal | Dir | Notes |
 |------|--------|-----|-------|
-| 17–24 | D0–D7 | BIDIR | Through 74LVC245. Direction set by GPIO25. Enable by GPIO26. PIO OUT_BASE=GPIO17 for bus reads. |
+| 17–24 | D0–D7 | BIDIR | Through 74LVC245 (5 V supply). CPC side is native 5 V. RP2350B side is 3.3 V — handled by the LVC245 output stage naturally. Direction: GPIO25. Enable: GPIO26. PIO OUT_BASE=GPIO17. |
 
 ### Group C — 74LVC245 Bus Transceiver Control (GPIO25–26)
 
@@ -186,7 +186,7 @@ LSB step ≈ 0.022 V. Use 1% tolerance resistors. Place close to DE-15.
 | Qty | Part | Package | Notes |
 |-----|------|---------|-------|
 | 1 | Waveshare Core2350B (8 MB PSRAM) | Stamp module — 2.54 mm pin headers | Main MCU. Onboard 3.3 V LDO, 16 MB flash, 8 MB PSRAM. Solder to PCB via pin headers. |
-| 1 | 74LVC245 | DIP-20 | Data bus transceiver. 5 V tolerant inputs. Socket recommended. |
+| 1 | 74LVC245 | DIP-20 | Data bus transceiver. Powered from CPC +5 V directly. 5 V CPC side, 3.3 V RP2350B side handled by LVC output stage. Socket recommended. |
 | 1 | 4.7 kΩ | Axial 1/4 W | ROMDIS hardwired HIGH — ties CPC expansion pin 44 to +5 V permanently |
 | 3 | 560 Ω 1% | Axial 1/4 W | VGA R4/G4/B4 MSB |
 | 3 | 1.0 kΩ 1% | Axial 1/4 W | VGA R3/G3/B3 |
@@ -195,8 +195,8 @@ LSB step ≈ 0.022 V. Use 1% tolerance resistors. Place close to DE-15.
 | 3 | 10 kΩ 1% | Axial 1/4 W | VGA R0/G0/B0 LSB |
 | 3 | 33 Ω | Axial 1/4 W | Control signal damping /MREQ, /WR, /RESET (optional — see PCB notes) |
 | 3 | 10 kΩ | Axial 1/4 W | Pull-ups on /MREQ, /WR, /RESET — safe state when CPC absent |
-| 6 | 100 nF | Disc ceramic, 2.54 mm pitch | VCC decoupling — one per VCC pin |
-| 2 | 10 µF 16 V | Electrolytic, radial | Bulk decoupling at module VCC |
+| 3 | 100 nF | Disc ceramic, 2.54 mm pitch | Decoupling — one on VBUS, one on 3.3 V output pin, one on 74LVC245 VCC (5 V) |
+| 2 | 10 µF 16 V | Electrolytic, radial | Bulk decoupling — one on VBUS/5 V rail, one on 3.3 V output pin |
 | 1 | DE-15 female | PCB mount THT | VGA output |
 | 1 | 50-pin right angle pin header | 2.54 mm pitch, 2×25 | CPC expansion bus — right angle so card sits flat in MX4-compatible backplane |
 | 1 | 2-pin header + jumper | 2.54 mm | Bus disconnect for development |
@@ -222,7 +222,7 @@ free non-commercial use of CPC ROM images. Include as binary blobs in the firmwa
 - **Bus jumper:** A 2-pin jumper to break the CPC data bus connection is essential for development — allows powering and testing the Core2350B independently.
 - **RAMDIS:** Connect CPC expansion pin 45 (RAMDIS) to a dedicated GPIO output (or permanent pull-up). HIGH disables the CPC's internal RAM chips. Always assert RAMDIS — we serve all 128 KB from our SRAM.
 - **ROMDIS:** Hardwire CPC expansion pin 44 (ROMDIS) permanently HIGH via a 4.7 kΩ resistor to +5 V — identical approach to RAMDIS. Since we serve all ROMs ourselves (BASIC, AMSDOS, slot 5), the CPC's onboard ROM chips are never needed and can be permanently disabled. No transistor, no GPIO connection required.
-- **Decoupling:** 100 nF ceramic on every VCC/GND pin of both ICs. 10 µF bulk at the module power rail.
+- **Decoupling:** 100 nF ceramic and 10 µF electrolytic on the VBUS (5 V) rail and on the 3.3 V output pin of the Core2350B module. Additional 100 nF ceramic directly on the 74LVC245 VCC pin (pin 20). The 74LVC245 runs from CPC +5 V — keep its VCC decoupling cap close to the chip.
 
 ---
 
